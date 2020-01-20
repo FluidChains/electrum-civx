@@ -1115,11 +1115,12 @@ def multisig_type(wallet_type):
     return match
 
 class SSLContextSafe:
+
+    @classmethod
+    def get_context(self, alt_context: ssl.SSLContext=None) -> ssl.SSLContext:
     """ Returns a known path for cert trust store on platforms with
     known issues validating certificate chains, or other
     """ 
-    @classmethod
-    def get_context(self, alt_context: ssl.SSLContext=None) -> ssl.SSLContext:
         context = alt_context
         if sys.platform == 'darwin':
             context = ssl.SSLContext()
@@ -1130,5 +1131,8 @@ class SSLContextSafe:
             if v >= 10.12:
                 if os.path.exists('/private/etc/ssl/cert.pem'):
                     context.load_verify_locations(cafile='/private/etc/ssl/cert.pem') 
+                else:
+                    context.load_verify_locations(cafile=certifi.where())
+        return context
 
         return context
