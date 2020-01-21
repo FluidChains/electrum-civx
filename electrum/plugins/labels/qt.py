@@ -26,9 +26,7 @@ class Plugin(LabelsPlugin):
         return True
 
     def settings_widget(self, window):
-
         wallet = window.parent().wallet
-
         return ThreadedButton("Synchronize",
                             partial(self.synchronize, wallet, True),
                             partial(self.done_processing_success, window),
@@ -42,11 +40,11 @@ class Plugin(LabelsPlugin):
         self.obj.labels_changed_signal.emit(wallet)
 
     def done_processing_success(self, window, result):
-        window.show_message(_('Your labels have been synchronised'))
+        window.show_message(_("Your labels have been synchronised"))
 
     def done_processing_error(self, window, exc_info):
         self.logger.error("Error synchronising labels", exc_info=exc_info)
-        window.show_message(_('Error synchronising labels') + f':\n{repr(exc_info[1])}')
+        window.show_message(_("Error synchronising labels") + f':\n{repr(exc_info[1])}')
 
     @hook
     def load_wallet(self, wallet, window):
