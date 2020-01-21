@@ -28,12 +28,11 @@ class Plugin(LabelsPlugin):
     def settings_widget(self, window):
 
         wallet = window.parent().wallet
-        d = WindowModalDialog(window, _("Label Settings"))
 
         return ThreadedButton("Synchronize",
                             partial(self.synchronize, wallet, True),
-                            partial(self.done_processing_success, d),
-                            partial(self.done_processing_error, d))
+                            partial(self.done_processing_success, window),
+                            partial(self.done_processing_error, window))
 
     def synchronize(self, wallet, force):
         self.pull(wallet, force)
@@ -42,12 +41,12 @@ class Plugin(LabelsPlugin):
     def on_pulled(self, wallet):
         self.obj.labels_changed_signal.emit(wallet)
 
-    def done_processing_success(self, dialog, result):
-        dialog.show_message(_("Your labels have been synchronised."))
+    def done_processing_success(self, window, result):
+        window.show_message(_('Your labels have been synchronised'))
 
-    def done_processing_error(self, dialog, exc_info):
+    def done_processing_error(self, window, exc_info):
         self.logger.error("Error synchronising labels", exc_info=exc_info)
-        dialog.show_error(_("Error synchronising labels") + f':\n{repr(exc_info[1])}')
+        window.show_message(_('Error synchronising labels') + f':\n{repr(exc_info[1])}')
 
     @hook
     def load_wallet(self, wallet, window):
