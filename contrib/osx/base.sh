@@ -104,12 +104,13 @@ function CreateDMG() {   # ARGS: PACKAGE_NAME VERSION DMG_BACKGROUND
     rm -rf "${DMG_TMP}" "${STAGING_DIR}"
 }
 
-function CreatePKG() {   # ARGS: PACKAGE_NAME VERSION PKG_BACKGROUND IDENTIFIER APPLE_DEV_INSTALLER_CERT
+function CreatePKG() {   # ARGS: PACKAGE_NAME VERSION PKG_BACKGROUND IDENTIFIER APPLE_DEV_INSTALLER_CERT DEV_INSTALLER_CERT
     PACKAGE_NAME="$1"
     VERSION="$2"
     PKG_ICON="$3"
     IDENTIFIER="$4"
-    DEV_INSTALLER_CERT="$5"
+    APPLE_DEV_INSTALLER_CERT="$5"
+    DEV_INSTALLER_CERT="$6"
 
     # set up app name, version number, and icon for the pkg file
     PKG_ICON="electrum/gui/icons/${PKG_ICON}" 
@@ -137,7 +138,7 @@ function CreatePKG() {   # ARGS: PACKAGE_NAME VERSION PKG_BACKGROUND IDENTIFIER 
         productbuild --distribution "contrib/osx/distribution.xml" \
         --package-path "dist" \
         --resources "contrib/osx" \
-        --sign "$DEV_INSTALLER_CERT" \
+        --sign "$APPLE_DEV_INSTALLER_CERT$DEV_INSTALLER_CERT" \
         "${PKG_FINAL}"
     fi
     

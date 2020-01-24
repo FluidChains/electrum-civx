@@ -153,7 +153,7 @@ plutil -insert 'CFBundleURLTypes' \
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Creating .PKG"
-CreatePKG "$PACKAGE" "$VERSION" "$PKG_ICON" "$IDENTIFIER" "$APPLE_DEV_INSTALLER_CERT$1"
+CreatePKG "$PACKAGE" "$VERSION" "$PKG_ICON" "$IDENTIFIER" "$APPLE_DEV_INSTALLER_CERT" "$1"
 
 info "Creating .DMG"
 CreateDMG "$PACKAGE" "$VERSION" "$DMG_BACKGROUND_IMG"  
