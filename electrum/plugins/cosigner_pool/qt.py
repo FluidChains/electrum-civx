@@ -47,7 +47,7 @@ from electrum_exos.i18n import _
 from electrum_exos.wallet import Multisig_Wallet
 from electrum_exos.util import bh2u, bfh
 
-from electrum_exos.gui.qt.transaction_dialog import show_transaction_timeout, TxDialogTimeout
+from electrum_exos.gui.qt.transaction_dialog import show_transaction, show_transaction_timeout, TxDialogTimeout
 from electrum_exos.gui.qt.transaction_wait_dialog import show_timeout_wait_dialog, TimeoutWaitDialog
 from electrum_exos.gui.qt.util import WaitingDialog, EnterButton, Buttons, WindowModalDialog, CloseButton, OkButton, read_QIcon
 
@@ -56,6 +56,7 @@ from . import server
 import sys
 import traceback
 
+WAIT_TIME = 60 * 10 
 
 class Listener(util.DaemonThread):
 
@@ -79,27 +80,12 @@ class Listener(util.DaemonThread):
                 time.sleep(2)
                 continue
             for keyhash in self.keyhashes:
-                try:
-                    if server.get(keyhash+'_name') == None:
-                        keyhash_concise = keyhash[0:10]+'...'+keyhash[-1:-5:-1]
-                        server.put(keyhash+'_name', keyhash_concise)
-                    pick = server.get(keyhash+'_pick')
-                    signed = server.get(keyhash+'_signed')
-                    self.logger.info(f"""
-                       pick  |  signed  | alert_suppresed
-                    ---------------------------------------
-                       {pick}  |  {signed}    | {pick == 'False' or signed == 'True'}
-                    """)
-                except CannotSendRequest:
-                    self.logger.info("cannot contact cosigner pool")
-                    continue
-                except Exception as e:
-                    self.logger.info(e)
-                    continue
-
-                if pick == 'False' or signed == 'True':
+                if keyhash in self.received:
                     continue
                 try:
+                    signed = server.signed
+                    if keyhash in signed:
+                        continue
                     message = server.get(keyhash)
                 except Exception as e:
                     self.logger.info("cannot contact cosigner pool")
@@ -123,12 +109,27 @@ class Plugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.listener = None
-        self.window = None
         self.obj = QReceiveSignalObject()
         self.obj.cosigner_receive_signal.connect(self.on_receive)
         self.keys = []
         self.cosigner_list = []
-        self.suppress_notifications = False
+        self._init_qt_received = False
+
+    @hook
+    def init_qt(self, gui):
+        if self._init_qt_received:  # only need/want the first signal
+            return
+        self._init_qt_received = True
+        for window in gui.windows:
+            self.on_new_window(window)
+
+    @hook
+    def on_new_window(self, window):
+        self.update(window)
+
+    @hook
+    def on_close_window(self, window):
+        self.update(window)
 
     def requires_settings(self):
         return True
@@ -145,26 +146,9 @@ class Plugin(BasePlugin):
         vbox = QVBoxLayout(d)
 
         purge = QPushButton(_("Purge Transactions"))
-        purge.clicked.connect(self.purge_transaction)
+        purge.clicked.connect(partial(self.purge_transaction, window))
         purge.setIcon(read_QIcon("warning.png"))
         vbox.addWidget(purge)
-
-        vbox.addWidget(QLabel(_('Wallet Owner:')))
-        grid = QGridLayout()
-        vbox.addLayout(grid)
-
-        grid.addWidget(QLabel(_('Name:')), 0, 0)
-        name = QLineEdit()
-        name.setText(self.config.get('wallet_owner', ''))
-        grid.addWidget(name, 0, 1)
-
-        sync = QPushButton(_("Sync Name"))
-        sync.clicked.connect(partial(self.sync_name, name))
-        vbox.addWidget(sync)
-
-        status = QPushButton(_("Tx. Status"))
-        status.clicked.connect(partial(self.tx_status_dialog, window))
-        vbox.addWidget(status)
 
         vbox.addStretch()
         vbox.addSpacing(13)
@@ -173,114 +157,27 @@ class Plugin(BasePlugin):
         if not d.exec_():
             return
 
-    def purge_transaction(self):
-        mods = ['_pick', '_signed', '_lock', '_shutdown']
-        if not self.window.question(_("Purging you transactions will erase the current transaction") + '\n' +
+    def purge_transaction(self, window):
+        if not window.question(_("Purging you transactions will erase the current transaction") + '\n' +
                         _("Are you sure you want to purge your transaction?")):
             return
-        for mod in mods:
-            for key, _hash, window in self.keys:
-                server.delete(_hash)
-                server.delete(_hash+mod)
-            for window, xpub, K, _hash in self.cosigner_list:
-                server.delete(_hash)
-                server.delete(_hash+mod)
-        self.window.show_message(_("Your transactions have been purged."))
-    
-    def sync_name(self, name):
-        self.config.set_key('wallet_owner', name.text())
-        if self.config.get('wallet_owner', ''):
-            for key, _hash, window in self.keys:
-                server.put(_hash+'_name', self.config.get('wallet_owner', ''))
-        for key, _hash, window in self.keys:
-            if self.config.get('wallet_owner', '') == server.get(_hash+'_name'):
-                self.window.show_message(_("Your name has been synced"))
-            else:
-                self.window.show_message(_("Failed to sync name with cosigner pool"))
-
-
-    def tx_status_dialog(self, window):
-        d = QDialog(window)
-        d.setWindowTitle(_("Transaction Status"))
-        d.setMinimumSize(600, 300)
-
-        vbox = QVBoxLayout(d)
-
-        status_header = 'No transaction in progress'
-        status = ''
-
-        for window, xpub, K, _hash in self.cosigner_list:
-            cosigner = server.get(_hash+'_name')
-            signed = True if server.get(_hash+'_signed') else False
-            signing = True if server.get(_hash+'_lock') else False
-            if signed:
-                status_header = 'Transaction in progress'
-            if signed:
-                message = 'Signed'
-            elif signing: 
-                message = 'Signing'
-            else:
-                message = 'Not signed'
-            status += f'<br><br> {cosigner}: <b>{message}</b>'
-
-        for key, _hash, window in self.keys:
-            cosigner = server.get(_hash+'_name')
-            signed = True if server.get(_hash+'_signed') else False
-            signing = True if server.get(_hash+'_lock') else False
-            if signed:
-                status_header = 'Transaction in progress'
-            if signed:
-                message = 'Signed'
-            elif signing: 
-                message = 'Signing'
-            else:
-                message = 'Not signed'
-            status += f'<br><br> You: <b>{message}</b>'
-
-        self.tx_status = QLabel()
-        vbox.addWidget(self.tx_status)
-        self.tx_status.setTextFormat(Qt.RichText)
-        self.tx_status.setText(_("<b>Transaction Status</b>") + ': ' + status_header + status)
-        self.tx_status.show()
-
-        vbox.addStretch()
-        vbox.addSpacing(13)
-        vbox.addLayout(Buttons(CloseButton(d)))
-        d.setModal(True)
-        d.show()
-
-    def correct_shutdown_state(self, _hash):
-        shutdown_flag = server.get(_hash+'_shutdown')
-        if shutdown_flag == 'down':
-            return
-        server.put(_hash+'_pick', 'True')
-        server.put(_hash+'_shutdown', 'down')
-
-    @hook
-    def init_qt(self, gui):
-        for window in gui.windows:
-            self.on_new_window(window)
-
-    @hook
-    def on_new_window(self, window):
-        self.update(window)
         
-        wallet = self.window.wallet
-        if type(wallet) != Multisig_Wallet:
-            return
-        for key, _hash, window in self.keys:
-            self.correct_shutdown_state(_hash)
-
-    @hook
-    def on_close_window(self, window):
-        self.update(window)
+        keys = server.xpub()
+        cosigners = server.cosigners()
+        for key in keys:
+            server.delete(key)
+        for cosigner in cosigners:
+            server.delete(cosigner)
+        del server.signed
+        del server.lock
+        
+        window.show_message(_("Your transactions have been purged."))
 
     def is_available(self):
         return True
 
     def update(self, window):
         wallet = window.wallet
-        self.window = window
         if type(wallet) != Multisig_Wallet:
             return
         if self.listener is None:
@@ -299,15 +196,18 @@ class Plugin(BasePlugin):
             _hash = bh2u(crypto.sha256d(pubkey))
             if not keystore.is_watching_only():
                 self.keys.append((key, _hash, window))
+                server.xpub(_hash)
             else:
                 self.cosigner_list.append((window, xpub, pubkey, _hash))
+                server.cosigners().append(_hash)
+        print('gRPC: wallet_hash: ', server.wallet_hash())
         if self.listener:
             self.listener.set_keyhashes([t[1] for t in self.keys])
 
     @hook
     def transaction_dialog(self, d):
         d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
-        b.clicked.connect(lambda: self.do_send(d.tx, d))
+        b.clicked.connect(lambda: self.do_send(d.tx))
         d.buttons.insert(0, b)
         self.transaction_dialog_update(d)
 
@@ -324,7 +224,7 @@ class Plugin(BasePlugin):
             d.cosigner_send_button.hide()
 
     def cosigner_can_sign(self, tx, cosigner_xpub):
-        from electrum_exos.keystore import is_xpubkey, parse_xpubkey
+        from electrum.keystore import is_xpubkey, parse_xpubkey
         xpub_set = set([])
         for txin in tx.inputs():
             for x_pubkey in txin['x_pubkeys']:
@@ -333,60 +233,44 @@ class Plugin(BasePlugin):
                     xpub_set.add(xpub)
         return cosigner_xpub in xpub_set
 
-    def do_send(self, tx, d):
+    def do_send(self, tx):
         def on_success(result):
-            [server.put(t[1]+'_signed', 'True') for t in self.keys]
-            release_locks()
-            self.window.show_message(_("Your transaction was sent to the cosigning pool.") + '\n' +
+            window.show_message(_("Your transaction was sent to the cosigning pool.") + '\n' +
                                 _("Open your cosigner wallet to retrieve it."))
-            time.sleep(1)
-            d.close()
-
         def on_failure(exc_info):
             e = exc_info[1]
             try: self.logger.error("on_failure", exc_info=exc_info)
             except OSError: pass
-            self.window.show_error(_("Failed to send transaction to cosigning pool. Please resend") + ':\n' + str(e))
+            window.show_error(_("Failed to send transaction to cosigning pool") + ':\n' + str(e))
 
-        def release_locks():
-            wallet = self.window.wallet
-            if type(wallet) == Multisig_Wallet:
-                for key, _hash, window in self.keys:
-                    # delete lock blocking other wallets from opening TX dialog
-                    server.delete(_hash+'_lock')
-                    # set pick flag to true
-                    server.put(_hash+'_pick', 'True')
-                    # set graceful shutdown flag to down to signify a graceful shutdown
-                    server.put(_hash+'_shutdown', 'down')
+        buffer = []
+        some_window = None
+        # construct messages
+        for window, xpub, K, _hash in self.cosigner_list:
+            if not self.cosigner_can_sign(tx, xpub):
+                continue
+            some_window = window
+            raw_tx_bytes = bfh(str(tx))
+            public_key = ecc.ECPubkey(K)
+            message = public_key.encrypt_message(raw_tx_bytes).decode('ascii')
+            buffer.append((_hash, message))
+        if not buffer:
+            return
 
-        def send_to_cosigner():        
-            for window, xpub, K, _hash in self.cosigner_list:
-                if not self.cosigner_can_sign(tx, xpub):
-                    continue
-                # construct message
-                raw_tx_bytes = bfh(str(tx))
-                public_key = ecc.ECPubkey(K)
-                message = public_key.encrypt_message(raw_tx_bytes).decode('ascii')
-                # send message
+        # send messages
+        # note: we send all messages sequentially on the same thread
+        def send_messages_task():
+            for _hash, message in buffer:
                 server.put(_hash, message)
-                server.put(_hash+'_pick', 'True')
-
-        task = lambda: send_to_cosigner()
+            for key, _hash, window in self.keys:
+                if _hash in server.signed:
+                    del server.signed
+                server.signed = _hash
         msg = _('Sending transaction to cosigning pool...')
-        WaitingDialog(self.window, msg, task, on_success, on_failure)
-        time.sleep(.5)
+        WaitingDialog(window, msg, send_messages_task, on_success, on_failure)
 
     def on_receive(self, keyhash, message):
         self.logger.info(f"signal arrived for {keyhash}")
-
-        WAIT_TIME = 10 * 60
-
-        if self.suppress_notifications:
-            for window, xpub, K, _hash in self.cosigner_list:
-                if server.get(_hash+'_lock'):
-                    return
-            self.suppress_notifications = False
-
         for key, _hash, window in self.keys:
             if _hash == keyhash:
                 break
@@ -401,13 +285,9 @@ class Plugin(BasePlugin):
                                   'which makes them not compatible with the current design of cosigner pool.'))
             return
         elif wallet.has_keystore_encryption():
-            # set pick to false when opening password dialog
-            server.put(keyhash+'_pick', 'False')
             password = window.password_dialog(_('An encrypted transaction was retrieved from cosigning pool.') + '\n' +
                                               _('Please enter your password to decrypt it.'))
             if not password:
-                # set pick back to true if password incorrect or omitted
-                server.put(keyhash+'_pick', 'True')
                 return
         else:
             password = None
@@ -426,47 +306,34 @@ class Plugin(BasePlugin):
             window.show_error(_('Error decrypting message') + ':\n' + str(e))
             return
 
-        #self.listener.clear(keyhash)
         tx = transaction.Transaction(message)
 
         def calculate_wait_time(expire):
             # calculate wait time
-            wait_time = int((WAIT_TIME - (int(server.get_current_time()) - int(expire))))
-            mins, secs = divmod(wait_time, 60)
+            server_time = server.get_current_time()
+            mins, secs = 0, 0
+            if server_time is not None:
+                wait_time = int((WAIT_TIME - (int(server_time) - int(expire))))
+                mins, secs = divmod(wait_time, 60)
             return '{:02d}:{:02d}'.format(mins, secs)
 
-        # check if lock has been placed for any wallets
-        for window, xpub, K, _hash in self.cosigner_list:
-            expire = server.get(_hash+'_lock')
-            if expire:
-                # set pick back to true if user lock is present
-                server.put(keyhash+'_pick', 'True')
-                # suppress any further notifications
-                self.suppress_notifications = True
-                # calculate wait time based on lock expiry and server time
-                timeformat = calculate_wait_time(expire)
+        # check if lock has been placed for wallet
+        expire = server.lock
+        if expire:
+            # calculate wait time based on lock expiry and server time
+            timeformat = calculate_wait_time(expire)
+            # display pop up
+            window.show_warning(_("A cosigner is currently signing the transaction.") + '\n' +
+                                _("Please wait {} until the signing has concluded.".format(timeformat)))
 
-                # display pop up
-                window.show_warning(_("A cosigner is currently signing the transaction.") + '\n' +
-                                    _("Please wait {} until the signing has concluded.".format(timeformat)))
-
-                show_timeout_wait_dialog(tx, window, prompt_if_unsaved=True)
-
-                return
-
-        # test if wallet has previously placed a lock
-        current_wallet_lock = server.get(keyhash+'_lock')
-        if not current_wallet_lock:
-            # no lock has been placed for current wallet => lock transaction dialog 
-            server.put(keyhash+'_lock', str(server.get_current_time()))
-            time_until_expired = '10 minutes'
+            show_timeout_wait_dialog(tx, window, prompt_if_unsaved=True)
+            return
         else:
-            time_until_expired = calculate_wait_time(current_wallet_lock)
-        
-        # place flag to test for graceful shutdown
-        server.put(keyhash+'_shutdown', 'up')
+            server.lock = str(server.get_current_time())
+            time_until_expired = '10 minutes'
+
         window.show_warning(_("You have {} to conclude signing after which the dialog will".format(time_until_expired)) + '\n' +
                             _("automatically close."))
             
-
+        self.listener.clear(keyhash)
         show_transaction_timeout(tx, window, prompt_if_unsaved=True)
