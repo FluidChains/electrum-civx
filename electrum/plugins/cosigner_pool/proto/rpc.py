@@ -1,0 +1,167 @@
+import logging
+import os
+import ssl
+import certifi
+import hashlib
+import itertools
+
+import grpc
+
+from . import cosignerpool_pb2_grpc
+from . import cosignerpool_pb2
+
+class XPubNotSetException(Exception):
+    pass
+
+class CosignersNotSetException(Exception):
+    pass
+
+class gRPCServer:
+    
+    def __init__(self, host, port):
+        if os.path.exists('/private/etc/ssl/cert.pem'):
+            cafile = '/private/etc/ssl/cert.pem'
+        else:
+            cafile = certifi.where()
+
+        with open(cafile, 'rb') as f:
+            trusted_certs = f.read()
+
+        credentials = grpc.ssl_channel_credentials(root_certificates=trusted_certs)
+        channel = grpc.secure_channel('{}:{}'.format(host, port), credentials)
+        self.stub = cosignerpool_pb2_grpc.CosignerpoolStub(channel)
+
+    def put(self, key, value, expiration=0):
+        try:
+            resp = self.stub.Put(cosignerpool_pb2.PutRequest(Key=key, Value=value, Expiration=expiration))
+            print(f'gRPC: PUT:: {key}, {value}')
+            return bool(resp.Success)
+        except grpc.RpcError as e:
+            print(f'gRPC: PUT:: {key}, {e.code()} ({e.details()})')
+    
+    def get(self, key):
+        try:
+            resp = self.stub.Get(cosignerpool_pb2.GetRequest(Key=key))
+            print(f'gRPC: GET:: {key}, {resp.Value}')
+            return str(resp.Value)
+        except grpc.RpcError as e:
+            print(f'gRPC: GET:: {key}, {e.code()} ({e.details()})')
+
+    def delete(self, key):
+        try:
+            resp = self.stub.Delete(cosignerpool_pb2.DeleteRequest(Key=key))
+            print(f'gRPC: DEL:: {key}, {resp.Success}')
+            return bool(resp.Success)
+        except grpc.RpcError as e:
+            print(f'gRPC: DEL:: {key}, {e.code()} ({e.details()})')
+
+    def ping(self):
+        try:
+            resp = self.stub.Ping(cosignerpool_pb2.Empty())
+            return response.Message
+        except grpc.RpcError as e:
+            print(f"gRPC PING: {e.code()} : {e.details()}")
+    
+    def get_current_time(self):
+        try:
+            resp = self.stub.GetTime(cosignerpool_pb2.Empty())
+            return resp.Timestamp
+        except grpc.RpcError as e:
+            print(f"gRPC TIME: {e.code()} : {e.details()}")
+            
+class Cosigner(gRPCServer):
+
+    __signed = []
+    __lock = None
+    __xpub = None
+    __cosigners = []
+    __wallet_hash = None
+
+    def __init__(self, host, port):
+        gRPCServer.__init__(self, host, port)
+
+    @classmethod
+    def _signed(cls, signed=None):
+        if signed is None:
+            return cls.__signed
+        cls.__signed = signed
+        return cls.__signed
+
+    @classmethod
+    def _lock(cls, lock=None):
+        if lock is None:
+            return cls.__lock
+        cls.__lock = lock
+        return cls.__lock
+
+    @classmethod
+    def xpub(cls, xpub=None):
+        if xpub is None:
+            return cls.__xpub
+        cls.__xpub = [xpub]
+        return cls.__xpub
+
+    @classmethod
+    def cosigners(cls, cosigners=None):
+        if cosigners is None:
+            return cls.__cosigners
+        cls.__cosigners = cosigners
+        return cls.__cosigners
+ 
+    @classmethod
+    def wallet_hash(cls):
+        if cls.__wallet_hash is not None:
+            return cls.__wallet_hash
+        # if cls.__xpub is None:
+        #     raise XPubNotSetException("xPub needs to be set")
+        # if cls.__cosigners is None:
+        #     raise CosignersNotSetException("Cosigners need to be set")
+        cls.__wallet_hash = sha1_lists(cls.__xpub, cls.__cosigners)
+        return cls.__wallet_hash
+
+    @property
+    def signed(self):
+        signatures = self.get(self.wallet_hash() + '_signed')
+        signatures = signatures.split('|') if signatures else []
+        self._signed(signatures)
+        return signatures
+
+    @signed.setter
+    def signed(self, hash):
+        self._signed().append(hash)
+        signatures = self._signed()
+        encoded = '|'.join(signatures)
+        return self.put(self.wallet_hash() + '_signed', encoded)
+    
+    @signed.deleter
+    def signed(self):
+        if self.delete(self.wallet_hash() + '_signed'):
+            self._signed([])
+            print("here", self._signed())
+            return True
+        return False
+
+    @property
+    def lock(self):
+        has_lock = self.get(self.wallet_hash() + '_lock')
+        self._lock(has_lock)
+        return has_lock
+
+    @lock.setter
+    def lock(self, hash):
+        return self.put(self.wallet_hash() + '_lock', hash)
+
+    @lock.deleter
+    def lock(self):
+        if self.delete(self.wallet_hash() + '_lock'):
+            self._lock(None)
+            return True
+        return False
+
+def sha1_lists(*args):
+    assert all(isinstance(x, list) for x in args)
+    keys = list(itertools.chain(*args))
+    keys_set = {x for x in keys}
+    set_sorted = sorted(keys_set)
+    s = "|".join(set_sorted).encode('utf-8')
+    return hashlib.sha1(s).hexdigest()
