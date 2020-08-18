@@ -90,23 +90,23 @@ class TimeoutWaitDialog(QDialog, MessageBoxMixin):
         self.main_window = parent
         self.wallet = parent.wallet
         
-        # store the keyhash and cosigners for current wallet
-        self.keyhashes = set()
-        self.cosigner_list = set()
-        if type(self.wallet) == Multisig_Wallet:
-            for key, keystore in self.wallet.keystores.items():
-                xpub = keystore.get_master_public_key()
-                pubkey = BIP32Node.from_xkey(xpub).eckey.get_public_key_bytes(compressed=True)
-                _hash = bh2u(crypto.sha256d(pubkey))
-                if not keystore.is_watching_only():
-                    self.keyhashes.add(_hash)
-                else:
-                    self.cosigner_list.add(_hash)
-                    self.locks[_hash] = server.get(_hash+'_lock')
-                    if self.locks[_hash]:
-                        name = server.get(_hash+'_name')
-                        if name:
-                            self.currently_signing = name
+        # # store the keyhash and cosigners for current wallet
+        # self.keyhashes = set()
+        # self.cosigner_list = set()
+        # if type(self.wallet) == Multisig_Wallet:
+        #     for key, keystore in self.wallet.keystores.items():
+        #         xpub = keystore.get_master_public_key()
+        #         pubkey = BIP32Node.from_xkey(xpub).eckey.get_public_key_bytes(compressed=True)
+        #         _hash = bh2u(crypto.sha256d(pubkey))
+        #         if not keystore.is_watching_only():
+        #             self.keyhashes.add(_hash)
+        #         else:
+        #             self.cosigner_list.add(_hash)
+        #             self.locks[_hash] = server.get(_hash+'_lock')
+        #             if self.locks[_hash]:
+        #                 name = server.get(_hash+'_name')
+        #                 if name:
+        #                     self.currently_signing = name
 
         self.setMinimumWidth(200)
         self.setWindowTitle(_("Information"))
@@ -150,10 +150,11 @@ class TimeoutWaitDialog(QDialog, MessageBoxMixin):
         vbox.addLayout(hbox)
 
         self.time_left_int = int(DURATION_INT)
-        for _hash, expire in self.locks.items():
-            if expire:
-                # Set time left to desired duration 
-                self.time_left_int = int(DURATION_INT - (int(server.get_current_time()) - int(expire)))
+
+        expire = server.lock
+        if expire:
+            # Set time left to desired duration 
+            self.time_left_int = int(DURATION_INT - (int(server.get_current_time()) - int(expire)))
         
         self.timer_start()
         self.update()
@@ -188,13 +189,8 @@ class TimeoutWaitDialog(QDialog, MessageBoxMixin):
         self.close()
 
     def update(self):
-        if self.time_left_int % 10 == 0:
-            lock_present = False
-            for _hash in self.cosigner_list:
-                lock = server.get(_hash+'_lock')
-                if lock:
-                    lock_present = True
-            if not lock_present:
+        if self.time_left_int != int(DURATION_INT) and self.time_left_int % 10 == 0:
+            if not server.lock:
                 self.time_left_int = 0
                 self.close()
 

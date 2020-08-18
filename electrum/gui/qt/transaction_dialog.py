@@ -194,19 +194,12 @@ class TxDialog(QDialog, MessageBoxMixin):
         finally:
             self.main_window.pop_top_level_window(self)
 
-            # on broadcast garbage collect 'all' keys
+            # on broadcast delete signed
             if type(self.wallet) == Multisig_Wallet:
-                for keyhash in self.keyhashes:
-                    server.delete(keyhash)
-                    server.delete(keyhash+'_pick')
-                    server.delete(keyhash+'_signed')
-                    server.delete(keyhash+'_lock')
-                for keyhash in self.cosigner_list:
-                    server.delete(keyhash)
-                    server.delete(keyhash+'_pick')
-                    server.delete(keyhash+'_signed')
-                    server.delete(keyhash+'_lock')
-
+                del server.signed
+                cosigners = server.cosigners()
+                for cosigner in cosigners:
+                    server.delete(cosigner)
                     
         self.saved = True
         self.update()
@@ -219,12 +212,6 @@ class TxDialog(QDialog, MessageBoxMixin):
         event.accept()
         try:
             dialogs.remove(self)
-
-            if type(self.wallet) == Multisig_Wallet:
-                # set pick flag to true
-                for keyhash in self.keyhashes:
-                    server.put(keyhash+'_pick', 'True')
-
         except ValueError:
             pass  # was not in list already
 
@@ -455,24 +442,6 @@ class TxDialogTimeout(TxDialog):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
-        self.locks = {}
-
-        # Set timeout flag 
-        self.timed_out = False
-
-        # store the keyhash and cosigners for current wallet
-        self.keyhashes = set()
-        self.cosigner_list = set()
-        if type(self.wallet) == Multisig_Wallet:
-            for key, keystore in self.wallet.keystores.items():
-                xpub = keystore.get_master_public_key()
-                pubkey = BIP32Node.from_xkey(xpub).eckey.get_public_key_bytes(compressed=True)
-                _hash = bh2u(crypto.sha256d(pubkey))
-                if not keystore.is_watching_only():
-                    self.keyhashes.add(_hash)
-                    self.locks[_hash] = server.get(_hash+'_lock')
-                else:
-                    self.cosigner_list.add(_hash)
                     
 
         # if the wallet can populate the inputs with more info, do it now.
@@ -543,10 +512,10 @@ class TxDialogTimeout(TxDialog):
         vbox.addLayout(hbox)
 
         self.time_left_int = int(DURATION_INT)
-        for _hash, expire in self.locks.items():
-            if expire:
-                self.time_left_int = int((DURATION_INT - (int(server.get_current_time()) - int(expire))))
-                self.timer_start()
+        expire = server.lock
+        if expire:
+            self.time_left_int = int((DURATION_INT - (int(server.get_current_time()) - int(expire))))
+            self.timer_start()
         self.update()
 
     def timer_start(self):
@@ -565,21 +534,15 @@ class TxDialogTimeout(TxDialog):
 
         self.update()
 
-    def release_locks(self):
+    def release_lock(self):
         if type(self.wallet) == Multisig_Wallet:
-            for keyhash in self.keyhashes:
-                # delete lock blocking other wallets from opening TX dialog
-                server.delete(keyhash+'_lock')
-                # set pick flag to true
-                server.put(keyhash+'_pick', 'True')
-                # set graceful shutdown flag to down to signify a graceful shutdown
-                server.put(keyhash+'_shutdown', 'down')
+            del server.lock
 
     def closeEvent(self, event):
         event.accept()
         try:
             dialogs.remove(self)
-            self.release_locks()
+            self.release_lock()
         except ValueError:
             pass  # was not in list already
 
