@@ -4,6 +4,7 @@ import ssl
 import certifi
 import hashlib
 import itertools
+import json
 
 import grpc
 
@@ -71,7 +72,6 @@ class gRPCServer:
             
 class Cosigner(gRPCServer):
 
-    __signed = []
     __lock = None
     __xpub = None
     __cosigners = []
@@ -79,13 +79,6 @@ class Cosigner(gRPCServer):
 
     def __init__(self, host, port):
         gRPCServer.__init__(self, host, port)
-
-    @classmethod
-    def _signed(cls, signed=None):
-        if signed is None:
-            return cls.__signed
-        cls.__signed = signed
-        return cls.__signed
 
     @classmethod
     def _lock(cls, lock=None):
@@ -118,28 +111,6 @@ class Cosigner(gRPCServer):
         #     raise CosignersNotSetException("Cosigners need to be set")
         cls.__wallet_hash = sha1_lists(cls.__xpub, cls.__cosigners)
         return cls.__wallet_hash
-
-    @property
-    def signed(self):
-        signatures = self.get(self.wallet_hash() + '_signed')
-        signatures = signatures.split('|') if signatures else []
-        self._signed(signatures)
-        return signatures
-
-    @signed.setter
-    def signed(self, hash):
-        self._signed().append(hash)
-        signatures = self._signed()
-        encoded = '|'.join(signatures)
-        return self.put(self.wallet_hash() + '_signed', encoded)
-    
-    @signed.deleter
-    def signed(self):
-        if self.delete(self.wallet_hash() + '_signed'):
-            self._signed([])
-            print("here", self._signed())
-            return True
-        return False
 
     @property
     def lock(self):
