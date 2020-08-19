@@ -196,11 +196,9 @@ class TxDialog(QDialog, MessageBoxMixin):
 
             # on broadcast delete signed
             if type(self.wallet) == Multisig_Wallet:
-                del server.signed
-                cosigners = server.cosigners()
-                for cosigner in cosigners:
-                    server.delete(cosigner)
-                    
+                wallet_hash = server.wallet_hash()
+                server.delete(wallet_hash)
+
         self.saved = True
         self.update()
 
@@ -512,7 +510,8 @@ class TxDialogTimeout(TxDialog):
         vbox.addLayout(hbox)
 
         self.time_left_int = int(DURATION_INT)
-        expire = server.lock
+        lock = server.lock
+        expire = int(lock['timestamp']) if lock else None
         if expire:
             self.time_left_int = int((DURATION_INT - (int(server.get_current_time()) - int(expire))))
             self.timer_start()
