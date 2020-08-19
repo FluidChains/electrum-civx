@@ -114,20 +114,19 @@ class Cosigner(gRPCServer):
 
     @property
     def lock(self):
-        has_lock = self.get(self.wallet_hash() + '_lock')
-        self._lock(has_lock)
-        return has_lock
+        raw = self.get(self.wallet_hash() + '_lock')
+        if not raw:
+            return None
+        return json.loads(raw)
 
     @lock.setter
-    def lock(self, hash):
-        return self.put(self.wallet_hash() + '_lock', hash)
+    def lock(self, value):
+        dumps = json.dumps(value)
+        return self.put(self.wallet_hash() + '_lock', dumps)
 
     @lock.deleter
     def lock(self):
-        if self.delete(self.wallet_hash() + '_lock'):
-            self._lock(None)
-            return True
-        return False
+        return self.delete(self.wallet_hash() + '_lock')
 
 def sha1_lists(*args):
     assert all(isinstance(x, list) for x in args)
