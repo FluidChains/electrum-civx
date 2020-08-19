@@ -105,10 +105,10 @@ class Cosigner(gRPCServer):
     def wallet_hash(cls):
         if cls.__wallet_hash is not None:
             return cls.__wallet_hash
-        # if cls.__xpub is None:
-        #     raise XPubNotSetException("xPub needs to be set")
-        # if cls.__cosigners is None:
-        #     raise CosignersNotSetException("Cosigners need to be set")
+        if cls.__xpub is None:
+            raise XPubNotSetException("xPub needs to be set")
+        if cls.__cosigners is None:
+            raise CosignersNotSetException("Cosigners need to be set")
         cls.__wallet_hash = sha1_lists(cls.__xpub, cls.__cosigners)
         return cls.__wallet_hash
 
