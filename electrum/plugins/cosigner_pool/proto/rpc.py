@@ -35,7 +35,7 @@ class gRPCServer:
     def put(self, key, value, expiration=0):
         try:
             resp = self.stub.Put(cosignerpool_pb2.PutRequest(Key=key, Value=value, Expiration=expiration))
-            print(f'gRPC: PUT:: {key}, {value}')
+            # print(f'gRPC: PUT:: {key}, {value}')
             return bool(resp.Success)
         except grpc.RpcError as e:
             print(f'gRPC: PUT:: {key}, {e.code()} ({e.details()})')
@@ -43,7 +43,7 @@ class gRPCServer:
     def get(self, key):
         try:
             resp = self.stub.Get(cosignerpool_pb2.GetRequest(Key=key))
-            print(f'gRPC: GET:: {key}, {resp.Value}')
+            # print(f'gRPC: GET:: {key}, {resp.Value}')
             return str(resp.Value)
         except grpc.RpcError as e:
             print(f'gRPC: GET:: {key}, {e.code()} ({e.details()})')
@@ -51,7 +51,7 @@ class gRPCServer:
     def delete(self, key):
         try:
             resp = self.stub.Delete(cosignerpool_pb2.DeleteRequest(Key=key))
-            print(f'gRPC: DEL:: {key}, {resp.Success}')
+            # print(f'gRPC: DEL:: {key}, {resp.Success}')
             return bool(resp.Success)
         except grpc.RpcError as e:
             print(f'gRPC: DEL:: {key}, {e.code()} ({e.details()})')
