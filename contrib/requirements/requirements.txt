@@ -1,7 +1,7 @@
 pyaes>=0.1a1
 ecdsa>=0.13
 qrcode
-protobuf
+protobuf==3.12.2
 dnspython
 jsonrpclib-pelix
 qdarkstyle<2.7
