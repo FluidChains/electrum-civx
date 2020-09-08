@@ -287,6 +287,7 @@ class Plugin(BasePlugin):
             xpub = keystore.get_master_public_key()
             pubkey = BIP32Node.from_xkey(xpub).eckey.get_public_key_bytes(compressed=True)
             _hash = bh2u(crypto.sha256d(pubkey))
+            self.logger.info(_hash)
             if not keystore.is_watching_only():
                 self.keys.append((key, _hash, window))
                 server.xpub(_hash)
