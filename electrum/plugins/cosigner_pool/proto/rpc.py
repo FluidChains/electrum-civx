@@ -133,9 +133,9 @@ class Cosigner(gRPCServer):
         return self.delete(self.wallet_hash() + '_lock')
 
 def sha1_lists(*args):
-    assert all(isinstance(x, list) for x in args)
-    keys = list(itertools.chain(*args))
-    keys_set = {x for x in keys}
-    set_sorted = sorted(keys_set)
-    s = "|".join(set_sorted).encode('utf-8')
-    return hashlib.sha1(s).hexdigest()
+    assert all(isinstance(x, list) for x in args)  # check all *args are of type 'list'
+    keys = list(itertools.chain(*args))            # combine all *args (list) into 1 'list'
+    keys_set = {x for x in keys}                   # create 'set' (all entries are unique)
+    set_sorted = sorted(keys_set)                  # sort the 'set'
+    s = "|".join(set_sorted).encode('utf-8')       # all keys into 1 'string' ('|' as delim)
+    return hashlib.sha1(s).hexdigest()             # calculate sha1 hash
