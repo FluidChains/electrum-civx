@@ -31,6 +31,7 @@ import time
 import signal
 import copy
 import json
+import logging
 
 from http.client import CannotSendRequest
 
@@ -56,6 +57,8 @@ from . import server
 
 import sys
 import traceback
+
+logger = logging.getLogger(__name__)
 
 WAIT_TIME = 60 * 10 
 
@@ -290,7 +293,12 @@ class Plugin(BasePlugin):
             else:
                 self.cosigner_list.append((window, xpub, pubkey, _hash))
                 server.cosigners().append(_hash)
+        for key in self.keys:
+            self.logger.info(f'xpub: {key[1]}')
+        for cosigner in self.cosigner_list:
+            self.logger.info(f'cosigners: {cosigner[3]}')
         self.wallet_hash = server.wallet_hash()
+        self.logger.info(self.wallet_hash)
         if self.listener:
             self.listener.set_keyhashes([t[1] for t in self.keys])
             self.listener.set_wallet_hash(self.wallet_hash)

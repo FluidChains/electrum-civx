@@ -11,6 +11,8 @@ import grpc
 from . import cosignerpool_pb2_grpc
 from . import cosignerpool_pb2
 
+logger = logging.getLogger(__name__)
+
 class XPubNotSetException(Exception):
     pass
 
@@ -35,40 +37,40 @@ class gRPCServer:
     def put(self, key, value, expiration=0):
         try:
             resp = self.stub.Put(cosignerpool_pb2.PutRequest(Key=key, Value=value, Expiration=expiration))
-            # print(f'gRPC: PUT:: {key}, {value}')
+            logger.debug(f'gRPC: PUT:: {key}, {value}')
             return bool(resp.Success)
         except grpc.RpcError as e:
-            print(f'gRPC: PUT:: {key}, {e.code()} ({e.details()})')
+            logger.error(f'gRPC: PUT:: {key}, {e.code()} ({e.details()})')
     
     def get(self, key):
         try:
             resp = self.stub.Get(cosignerpool_pb2.GetRequest(Key=key))
-            # print(f'gRPC: GET:: {key}, {resp.Value}')
+            logger.debug(f'gRPC: GET:: {key}, {resp.Value}')
             return str(resp.Value)
         except grpc.RpcError as e:
-            print(f'gRPC: GET:: {key}, {e.code()} ({e.details()})')
+            logger.error(f'gRPC: GET:: {key}, {e.code()} ({e.details()})')
 
     def delete(self, key):
         try:
             resp = self.stub.Delete(cosignerpool_pb2.DeleteRequest(Key=key))
-            # print(f'gRPC: DEL:: {key}, {resp.Success}')
+            logger.debug(f'gRPC: DEL:: {key}, {resp.Success}')
             return bool(resp.Success)
         except grpc.RpcError as e:
-            print(f'gRPC: DEL:: {key}, {e.code()} ({e.details()})')
+            logger.error(f'gRPC: DEL:: {key}, {e.code()} ({e.details()})')
 
     def ping(self):
         try:
             resp = self.stub.Ping(cosignerpool_pb2.Empty())
             return response.Message
         except grpc.RpcError as e:
-            print(f"gRPC PING: {e.code()} : {e.details()}")
+            logger.error(f"gRPC PING: {e.code()} : {e.details()}")
     
     def get_current_time(self):
         try:
             resp = self.stub.GetTime(cosignerpool_pb2.Empty())
             return resp.Timestamp
         except grpc.RpcError as e:
-            print(f"gRPC TIME: {e.code()} : {e.details()}")
+            logger.error(f"gRPC TIME: {e.code()} : {e.details()}")
             
 class Cosigner(gRPCServer):
 
@@ -110,6 +112,8 @@ class Cosigner(gRPCServer):
         if cls.__cosigners is None:
             raise CosignersNotSetException("Cosigners need to be set")
         cls.__wallet_hash = sha1_lists(cls.__xpub, cls.__cosigners)
+        logger.info(f'Wallet Hash: {cls.__wallet_hash}')
+        print(f'Wallet Hash: {cls.__wallet_hash}')
         return cls.__wallet_hash
 
     @property

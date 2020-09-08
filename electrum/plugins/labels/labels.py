@@ -30,7 +30,7 @@ class LabelsPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.target_host = 'labels.exos.to'
+        self.target_host = 'labels-dev.exos.to'
         self.wallets = {}
         self.proxy = None
 
