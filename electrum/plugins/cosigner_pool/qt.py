@@ -32,6 +32,7 @@ import signal
 import copy
 import json
 import logging
+import hashlib
 
 from http.client import CannotSendRequest
 
@@ -71,6 +72,7 @@ class Listener(util.DaemonThread):
         self.received = set()
         self.keyhashes = []
         self.wallet_hash = None
+        self.last_tx = None
 
     def set_keyhashes(self, keyhashes):
         self.keyhashes = keyhashes
@@ -87,22 +89,24 @@ class Listener(util.DaemonThread):
                 time.sleep(2)
                 continue
             for keyhash in self.keyhashes:
-                if keyhash in self.received:
-                    continue
                 try:
                     lock = server.lock
                     if lock:
                         continue
                     data = server.get(self.wallet_hash)
+                    sha1_data = hashlib.sha1(data).hexdigest() # sha1 of the data (to check for udpates)
                 except Exception as e:
                     self.logger.info("cannot contact cosigner pool")
                     time.sleep(30)
                     continue
-                if data:
-                    self.received.add(keyhash)
-                    self.logger.info(f"received data for {keyhash}")
-                    self.parent.obj.cosigner_receive_signal.emit(
-                        keyhash, data)
+                if not data:
+                    continue
+                if keyhash in self.received and self.last_tx == sha1_data:
+                    continue
+                self.received.add(keyhash)
+                self.logger.info(f"received data for {keyhash}")
+                self.parent.obj.cosigner_receive_signal.emit(
+                    keyhash, data)
             # poll every 30 seconds
             time.sleep(30)
 
