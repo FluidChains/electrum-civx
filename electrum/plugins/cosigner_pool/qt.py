@@ -105,6 +105,7 @@ class Listener(util.DaemonThread):
                 if keyhash in self.received and self.last_tx == sha1_data:
                     continue
                 self.received.add(keyhash)
+                self.last_tx = sha1_data
                 self.logger.info(f"received data for {keyhash}")
                 self.parent.obj.cosigner_receive_signal.emit(
                     keyhash, data)
