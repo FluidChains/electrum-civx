@@ -96,6 +96,7 @@ class Listener(util.DaemonThread):
                     data = server.get(self.wallet_hash)
                     sha1_data = hashlib.sha1(data.encode('utf-8')).hexdigest() # sha1 of the data (to check for udpates)
                 except Exception as e:
+                    self.logger.error(e)
                     self.logger.info("cannot contact cosigner pool")
                     time.sleep(30)
                     continue
