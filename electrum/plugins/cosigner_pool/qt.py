@@ -211,7 +211,8 @@ class Plugin(BasePlugin):
 
 
     def tx_status_dialog(self, window):
-        d = WindowModalDialog(window, _("Transaction Status"))
+        d = QDialog(window)
+        d.setWindowTitle(_("Transaction Status"))
 
         d.setMinimumSize(600, 300)
 
@@ -269,8 +270,8 @@ class Plugin(BasePlugin):
         vbox.addSpacing(13)
         vbox.addLayout(Buttons(CloseButton(d)))
         
-        if not d.exec_():
-            return
+        d.setModal(True)
+        d.show()
 
     def is_available(self):
         return True
