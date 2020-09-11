@@ -195,6 +195,7 @@ class Plugin(BasePlugin):
         
         server.delete(self.wallet_hash)
         del server.lock
+        self.signed = []
         
         window.show_message(_("Your transactions have been purged."))
 
@@ -374,6 +375,7 @@ class Plugin(BasePlugin):
         # send message
         def send_messages_task():
             server.put(self.wallet_hash, json.dumps(buffer))
+            self.signed = []
 
         msg = _('Sending transaction to cosigning pool...')
         WaitingDialog(window, msg, send_messages_task, on_success, on_failure)
