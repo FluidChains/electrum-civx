@@ -154,7 +154,7 @@ class TimeoutWaitDialog(QDialog, MessageBoxMixin):
         expire = server.lock
         if expire:
             # Set time left to desired duration 
-            self.time_left_int = int(DURATION_INT - (int(server.get_current_time()) - int(expire)))
+            self.time_left_int = int(DURATION_INT - (int(server.get_current_time()) - int(expire['timestamp'])))
         
         self.timer_start()
         self.update()

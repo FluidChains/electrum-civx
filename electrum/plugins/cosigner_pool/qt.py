@@ -451,7 +451,7 @@ class Plugin(BasePlugin):
         expire = server.lock
         if expire:
             # calculate wait time based on lock expiry and server time
-            timeformat = calculate_wait_time(expire)
+            timeformat = calculate_wait_time(expire['timestamp'])
             # display pop up
             window.show_warning(_("A cosigner is currently signing the transaction.") + '\n' +
                                 _("Please wait {} until the signing has concluded.".format(timeformat)))
