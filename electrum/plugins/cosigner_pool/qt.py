@@ -448,15 +448,22 @@ class Plugin(BasePlugin):
             return '{:02d}:{:02d}'.format(mins, secs)
 
         # check if lock has been placed for wallet
-        expire = server.lock
-        if expire:
+        lock = server.lock
+        if lock:
             # calculate wait time based on lock expiry and server time
-            timeformat = calculate_wait_time(expire['timestamp'])
+            timeformat = calculate_wait_time(lock['timestamp'])
             # display pop up
             window.show_warning(_("A cosigner is currently signing the transaction.") + '\n' +
                                 _("Please wait {} until the signing has concluded.".format(timeformat)))
 
-            show_timeout_wait_dialog(tx, window, prompt_if_unsaved=True)
+            xpub = lock['xpub']
+            name = None
+            try:
+                name = server.get(xpub+'_name')
+            except Exception as e:
+                self.logger.exception(e)
+                self.logger.error("Failed to get cosigner name from server")
+            show_timeout_wait_dialog(tx, xpub, name, window, prompt_if_unsaved=True)
             return
         else:
             buffer = {'timestamp' : '', 'xpub' : ''}

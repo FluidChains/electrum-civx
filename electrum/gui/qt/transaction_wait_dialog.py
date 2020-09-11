@@ -51,9 +51,9 @@ dialogs = []
 
 DURATION_INT = 60 * 10 
 
-def show_timeout_wait_dialog(tx, parent, desc=None, prompt_if_unsaved=False):
+def show_timeout_wait_dialog(tx, xpub, name, parent, desc=None, prompt_if_unsaved=False):
     try:
-        d = TimeoutWaitDialog(tx, parent, desc, prompt_if_unsaved)
+        d = TimeoutWaitDialog(tx, xpub, name, parent, desc, prompt_if_unsaved)
     except SerializationError as e:
         traceback.print_exc(file=sys.stderr)
         parent.show_critical(_("EXOS-Electrum was unable to deserialize the transaction:") + "\n" + str(e))
@@ -64,7 +64,7 @@ def show_timeout_wait_dialog(tx, parent, desc=None, prompt_if_unsaved=False):
 
 class TimeoutWaitDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, tx, parent, desc, prompt_if_unsaved):
+    def __init__(self, tx, xpub, name, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -82,7 +82,8 @@ class TimeoutWaitDialog(QDialog, MessageBoxMixin):
         self.saved = False
         self.desc = desc
         self.locks = {}
-        self.currently_signing = None
+        print('wait dialog name: ', name)
+        self.currently_signing = name or xpub[0:10] + '...' + xpub[-1:-5:-1]
 
         # Set timeout flag 
         self.timed_out = False
@@ -90,24 +91,6 @@ class TimeoutWaitDialog(QDialog, MessageBoxMixin):
         self.main_window = parent
         self.wallet = parent.wallet
         
-        # # store the keyhash and cosigners for current wallet
-        # self.keyhashes = set()
-        # self.cosigner_list = set()
-        # if type(self.wallet) == Multisig_Wallet:
-        #     for key, keystore in self.wallet.keystores.items():
-        #         xpub = keystore.get_master_public_key()
-        #         pubkey = BIP32Node.from_xkey(xpub).eckey.get_public_key_bytes(compressed=True)
-        #         _hash = bh2u(crypto.sha256d(pubkey))
-        #         if not keystore.is_watching_only():
-        #             self.keyhashes.add(_hash)
-        #         else:
-        #             self.cosigner_list.add(_hash)
-        #             self.locks[_hash] = server.get(_hash+'_lock')
-        #             if self.locks[_hash]:
-        #                 name = server.get(_hash+'_name')
-        #                 if name:
-        #                     self.currently_signing = name
-
         self.setMinimumWidth(200)
         self.setWindowTitle(_("Information"))
 
