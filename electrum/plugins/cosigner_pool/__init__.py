@@ -12,4 +12,4 @@ description = ' '.join([
 #requires_wallet_type = ['2of2', '2of3']
 available_for = ['qt']
 
-server = Cosigner('cosigner-dev.exos.to', '443')
+server = Cosigner('cosigner.exos.to', '443')
