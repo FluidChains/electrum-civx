@@ -49,6 +49,7 @@ from electrum_exos.wallet import Multisig_Wallet
 from electrum_exos.plugins.cosigner_pool import server	
 from electrum_exos.logging import get_logger
 
+from .transaction_dialog   import QTextEditWithDefaultSize, TxDetailLabel
 from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit)
 
@@ -63,21 +64,21 @@ DURATION_INT = 60 * 10
 _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
-
-def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
+def show_transaction_timeout(tx, signed, parent, desc=None, prompt_if_unsaved=False):
     try:
-        d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+        d = TxDialogTimeout(tx, signed, parent, desc, prompt_if_unsaved)
     except SerializationError as e:
-        _logger.exception('unable to deserialize the transaction')
+        traceback.print_exc(file=sys.stderr)
         parent.show_critical(_("EXOS-Electrum was unable to deserialize the transaction:") + "\n" + str(e))
     else:
         dialogs.append(d)
         d.show()
+        return d
 
+class TxDialogTimeout(QDialog, MessageBoxMixin):
 
-class TxDialog(QDialog, MessageBoxMixin):
-
-    def __init__(self, tx, parent, desc, prompt_if_unsaved):
+    def __init__(self, tx, signed, parent, desc, prompt_if_unsaved):
+        
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -87,30 +88,17 @@ class TxDialog(QDialog, MessageBoxMixin):
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
         self.tx = tx = copy.deepcopy(tx)  # type: Transaction
+        self.signed = signed = copy.deepcopy(signed)
         try:
             self.tx.deserialize()
         except BaseException as e:
             raise SerializationError(e)
-        self.main_window = parent  # type: ElectrumWindow
+        self.main_window = parent
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
         
-
-        # store the keyhash and cosigners for current wallet
-        self.keyhashes = set()
-        self.cosigner_list = set()
-        if type(self.wallet) == Multisig_Wallet:
-            for key, keystore in self.wallet.keystores.items():
-                xpub = keystore.get_master_public_key()
-                pubkey = BIP32Node.from_xkey(xpub).eckey.get_public_key_bytes(compressed=True)
-                _hash = bh2u(crypto.sha256d(pubkey))
-                if not keystore.is_watching_only():
-                    self.keyhashes.add(_hash)
-                else:
-                    self.cosigner_list.add(_hash)
-
         # if the wallet can populate the inputs with more info, do it now.
         # as a result, e.g. we might learn an imported address tx is segwit,
         # in which case it's ok to display txid
@@ -128,11 +116,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         self.tx_hash_e.addButton(qr_icon, qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
-        
         vbox.addWidget(self.tx_hash_e)
 
         self.add_tx_stats(vbox)
-        vbox.addSpacing(10)
         self.add_io(vbox)
 
         self.sign_button = b = QPushButton(_("Sign"))
@@ -168,6 +154,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Transaction sharing buttons
         self.sharing_buttons = [self.copy_button, self.qr_button, self.export_button, self.save_button]
 
+        # Add label for countdown timer
+        self.time_out_label = QLabel()
+        vbox.addWidget(self.time_out_label)
+
         run_hook('transaction_dialog', self)
 
         hbox = QHBoxLayout()
@@ -175,8 +165,15 @@ class TxDialog(QDialog, MessageBoxMixin):
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         vbox.addLayout(hbox)
-        self.update()
 
+        self.time_left_int = int(DURATION_INT)
+        lock = server.lock
+        expire = int(lock['timestamp']) if lock else None
+        if expire:
+            self.time_left_int = int((DURATION_INT - (int(server.get_current_time()) - int(expire))))
+            self.timer_start()
+        self.update()
+        
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
         try:
@@ -192,14 +189,29 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.saved = True
         self.update()
 
+    def timer_start(self):
+        self.my_qtimer = QTimer(self)
+        self.my_qtimer.timeout.connect(self.timer_timeout)
+        self.my_qtimer.start(1000)
+
+        self.update()
+
+    def timer_timeout(self):
+        self.time_left_int -= 1
+        if self.time_left_int == 0 and self.isVisible():
+            self.timed_out = True
+            self.close()
+        self.update()
+
+    def release_lock(self):
+        if type(self.wallet) == Multisig_Wallet:
+            del server.lock
+
     def closeEvent(self, event):
-        # if (self.prompt_if_unsaved and not self.saved
-        #         and not self.question(_('This transaction is not saved. Close anyway?'), title=_("Warning"))):
-        #     event.ignore()
-        # else:
         event.accept()
         try:
             dialogs.remove(self)
+            self.release_lock()
         except ValueError:
             pass  # was not in list already
 
@@ -254,6 +266,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
+        # tx_hash, status, label, can_broadcast, can_rbf, amount, fee, height, conf, timestamp, exp_n, = self.wallet.get_tx_info(self.tx)
         tx_details = self.wallet.get_tx_info(self.tx)
         tx_mined_status = tx_details.tx_mined_status
         exp_n = tx_details.mempool_depth_bytes
@@ -281,16 +294,6 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         else:
             self.date_label.hide()
-        self.locktime_label.setText(f"LockTime: {self.tx.locktime}")
-        self.rbf_label.setText(f"RBF: {not self.tx.is_final()}")
-        if tx_mined_status.header_hash:
-            self.block_hash_label.setText(_("Included in block: {}")
-                                          .format(tx_mined_status.header_hash))
-            self.block_height_label.setText(_("At block height: {}")
-                                            .format(tx_mined_status.height))
-        else:
-            self.block_hash_label.hide()
-            self.block_height_label.hide()
         if amount is None:
             amount_str = _("Transaction unrelated to your wallet")
         elif amount > 0:
@@ -302,13 +305,21 @@ class TxDialog(QDialog, MessageBoxMixin):
         if fee is not None:
             fee_rate = fee/size*1000
             fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate)
-            feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
-            if fee_rate > feerate_warning:
+            confirm_rate = simple_config.FEERATE_WARNING_HIGH_FEE
+            if fee_rate > confirm_rate:
                 fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
+
+        # Set label for countdown timer and on update
+        mins, secs = divmod(self.time_left_int, 60)
+        timeformat = 'Time left: {:02d}:{:02d}'.format(mins, secs)
+        #countdown = _("Time left") + ': %s' % (str(self.time_left_int))
+        self.time_out_label.setText(timeformat)
+
         self.size_label.setText(size_str)
         run_hook('transaction_dialog_update', self)
+
 
     def add_io(self, vbox):
         vbox.addWidget(QLabel(_("Inputs") + ' (%d)'%len(self.tx.inputs())))
@@ -408,16 +419,3 @@ class TxDialog(QDialog, MessageBoxMixin):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
-        
-
-class QTextEditWithDefaultSize(QTextEdit):
-    def sizeHint(self):
-        return QSize(0, 100)
-
-
-class TxDetailLabel(QLabel):
-    def __init__(self, *, word_wrap=None):
-        super().__init__()
-        self.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        if word_wrap is not None:
-            self.setWordWrap(word_wrap)
