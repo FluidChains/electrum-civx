@@ -50,7 +50,7 @@ from electrum_exos.i18n import _
 from electrum_exos.wallet import Multisig_Wallet
 from electrum_exos.util import bh2u, bfh
 
-from electrum_exos.gui.qt.transaction_dialog import show_transaction, show_transaction_timeout, TxDialogTimeout
+from electrum_exos.gui.qt.transaction_dialog_timeout import show_transaction_timeout, TxDialogTimeout
 from electrum_exos.gui.qt.transaction_wait_dialog import show_timeout_wait_dialog, TimeoutWaitDialog
 from electrum_exos.gui.qt.util import WaitingDialog, EnterButton, Buttons, WindowModalDialog, CloseButton, OkButton, read_QIcon
 
@@ -313,7 +313,7 @@ class Plugin(BasePlugin):
     @hook
     def transaction_dialog(self, d):
         d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
-        b.clicked.connect(lambda: self.do_send(d.tx, d.signed, d))
+        b.clicked.connect(lambda: self.do_send(d.tx, d))
         d.buttons.insert(0, b)
         self.transaction_dialog_update(d)
 
@@ -339,7 +339,7 @@ class Plugin(BasePlugin):
                     xpub_set.add(xpub)
         return cosigner_xpub in xpub_set
 
-    def do_send(self, tx, signed, d):
+    def do_send(self, tx, d):
         def on_success(result):
             window.show_message(_("Your transaction was sent to the cosigning pool.") + '\n' +
                                 _("Open your cosigner wallet to retrieve it."))
@@ -366,7 +366,8 @@ class Plugin(BasePlugin):
         if not buffer:
             return
         # construct signed
-        buffer['signed'] = signed
+        if type(d) == TxDialogTimeout:
+            buffer['signed'] = d.signed
         for key, _hash, window in self.keys:
             buffer['signed'].append(_hash)
 
