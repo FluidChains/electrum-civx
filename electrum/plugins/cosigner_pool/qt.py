@@ -127,7 +127,6 @@ class Plugin(BasePlugin):
         self.keys = []
         self.cosigner_list = []
         self._init_qt_received = False
-        self.signed = []
 
     @hook
     def init_qt(self, gui):
@@ -195,7 +194,6 @@ class Plugin(BasePlugin):
         
         server.delete(self.wallet_hash)
         del server.lock
-        self.signed = []
         
         window.show_message(_("Your transactions have been purged."))
 
@@ -315,7 +313,7 @@ class Plugin(BasePlugin):
     @hook
     def transaction_dialog(self, d):
         d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
-        b.clicked.connect(lambda: self.do_send(d.tx, d))
+        b.clicked.connect(lambda: self.do_send(d.tx, d.signed, d))
         d.buttons.insert(0, b)
         self.transaction_dialog_update(d)
 
@@ -341,7 +339,7 @@ class Plugin(BasePlugin):
                     xpub_set.add(xpub)
         return cosigner_xpub in xpub_set
 
-    def do_send(self, tx, d):
+    def do_send(self, tx, signed, d):
         def on_success(result):
             window.show_message(_("Your transaction was sent to the cosigning pool.") + '\n' +
                                 _("Open your cosigner wallet to retrieve it."))
@@ -368,14 +366,13 @@ class Plugin(BasePlugin):
         if not buffer:
             return
         # construct signed
-        buffer['signed'] = self.signed
+        buffer['signed'] = signed
         for key, _hash, window in self.keys:
             buffer['signed'].append(_hash)
 
         # send message
         def send_messages_task():
             server.put(self.wallet_hash, json.dumps(buffer))
-            self.signed = []
 
         msg = _('Sending transaction to cosigning pool...')
         WaitingDialog(window, msg, send_messages_task, on_success, on_failure)
@@ -405,7 +402,6 @@ class Plugin(BasePlugin):
             self.logger.info("user has already signed")
             return
 
-        self.signed = signed
         message = txs[keyhash]
 
         wallet = window.wallet
@@ -476,4 +472,4 @@ class Plugin(BasePlugin):
                             _("automatically close."))
             
         self.listener.clear(keyhash)
-        show_transaction_timeout(tx, window, prompt_if_unsaved=True)
+        show_transaction_timeout(tx, signed, window, prompt_if_unsaved=True)
