@@ -412,8 +412,9 @@ class Plugin(BasePlugin):
                                   'which makes them not compatible with the current design of cosigner pool.'))
             return
         elif wallet.has_keystore_encryption():
-            password = window.password_dialog(_('An encrypted transaction was retrieved from cosigning pool.') + '\n' +
-                                              _('Please enter your password to decrypt it.'), parent=None)
+            password = window.password_dialog(str(datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S") + '\n\n' +
+                                              _('An encrypted transaction was retrieved from cosigning pool.') + '\n' +
+                                              _('Please enter your password to decrypt it. ')), parent=None)
             if not password:
                 return
         else:
