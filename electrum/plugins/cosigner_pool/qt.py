@@ -471,7 +471,7 @@ class Plugin(BasePlugin):
             time_until_expired = '10 minutes'
 
         window.show_warning(_("You have {} to conclude signing after which the dialog will".format(time_until_expired)) + '\n' +
-                            _("automatically close."))
+                            _("automatically close."), parent=None)
             
         self.listener.clear(keyhash)
         show_transaction_timeout(tx, signed, window, prompt_if_unsaved=True)
