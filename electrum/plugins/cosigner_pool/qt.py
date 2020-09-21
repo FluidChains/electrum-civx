@@ -49,6 +49,7 @@ from electrum_exos.plugin import BasePlugin, hook, run_hook
 from electrum_exos.i18n import _
 from electrum_exos.wallet import Multisig_Wallet
 from electrum_exos.util import bh2u, bfh
+from electrum_exos.util import InvalidPassword
 
 from electrum_exos.gui.qt.transaction_dialog_timeout import show_transaction_timeout, TxDialogTimeout
 from electrum_exos.gui.qt.transaction_wait_dialog import show_timeout_wait_dialog, TimeoutWaitDialog
@@ -423,9 +424,15 @@ class Plugin(BasePlugin):
                                    _("Do you want to open it now?")):
                 return
 
-        xprv = wallet.keystore.get_master_private_key(password)
-        if not xprv:
+        xprv = None
+        try:
+            xprv = wallet.keystore.get_master_private_key(password)
+            if not xprv:
+                return
+        except InvalidPassword as e:
+            self.logger.info("Invalid Password")
             return
+
         try:
             privkey = BIP32Node.from_xkey(xprv).eckey
             message = bh2u(privkey.decrypt_message(message))
