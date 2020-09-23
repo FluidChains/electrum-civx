@@ -430,7 +430,8 @@ class Plugin(BasePlugin):
             if not xprv:
                 return
         except InvalidPassword as e:
-            self.logger.info("Invalid Password")
+            self.logger.info("Incorrect Password")
+            window.show_error(_("Incorrect Password"))
             return
 
         try:
