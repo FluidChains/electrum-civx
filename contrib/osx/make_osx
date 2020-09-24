@@ -131,6 +131,9 @@ info "Installing hardware wallet requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
 fail "Could not install hardware wallet requirements"
 
+info "Updating protobuf..."
+python3 -m pip install -I --user --upgrade protobuf || fail "Could not update protobuf"
+
 info "Building $PACKAGE..."
 python3 -m pip install --user . > /dev/null || fail "Could not build $PACKAGE"
 
