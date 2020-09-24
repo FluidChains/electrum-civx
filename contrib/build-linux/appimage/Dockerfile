@@ -4,7 +4,6 @@ ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
 RUN apt-get update -q && \
     apt-get install -qy \
-        git=1:1.9.1-1ubuntu0.10 \
         wget=1.15-1ubuntu1.14.04.5 \
         make=3.81-8.2ubuntu3 \
         autotools-dev=20130810.1 \
@@ -23,6 +22,10 @@ RUN apt-get update -q && \
         libzbar0=0.10+doc-9build1  \
         libdbus-1-3=1.6.18-0ubuntu4.5 \
         && \
+    apt-get install -qy software-properties-common && \
+    add-apt-repository ppa:git-core/ppa && \
+    apt-get update -q && \
+    apt-get install -qy git && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
     apt-get clean
