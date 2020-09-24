@@ -1,3 +1,24 @@
+# Release 3.3.9 - (September 23, 2019)
+
+ * Update the MultiSig code (new implementation) to work with the 
+   new Cosigner, Labels and Crushhub code (new servers)
+ * Add scripts and distributions files (license, readme, welcome and others)
+   to create installable packages (pkg) for mac OSX
+ * Distribution packages (pkg) can be Digital Signed with Apple Dev Certificate
+ * Fix the SSL certificates path for mac OSX platform for Cosigner pool
+ * Improvement for logging into Console and files including full timestamp
+ * Customize colors for Android wallet
+ * Increase the maximum number of connected servers to 14
+ * The new directory for the portable wallet is exos_electrum_data
+ * Update Keyalias for Android release and debug builds
+ * Add support for protobuf & gRPC
+ * Refactor cosigner_pool plugin and transaction dialogs to use gRPC
+ * Pin versions for protobuf & grpcio (fix issue during builds for all OS)
+ * Update Git in Dockerfile (ppa repo) to be able to have 6 digits on hash ID
+ * Update the URL (checking process) for new updates/releases available
+ * Security updates for gnupg2, dirmngr, and ecdsa (to version 0.16)
+ * A few other minor bugfixes and usability improvements.
+
 # Release 3.3.8 - (July 11, 2019)
 
  * fix some bugs with recent bump fee (RBF) improvements (#5483, #5502)

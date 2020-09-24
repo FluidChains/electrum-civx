@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+option go_package = "github.com/FluidChains/cosignerpool/proto";
+
+package cosignerpool;
+
+// The greeting service definition.
+service Cosignerpool {
+
+  // Writes a value into a key
+  rpc Put (PutRequest) returns (PutResponse) {}
+
+  // Reads the value of a key
+  rpc Get (GetRequest) returns (GetResponse) {}
+
+  // Deletes a key
+  rpc Delete (DeleteRequest) returns (DeleteResponse) {}
+
+  // Sends a 'ping'
+  rpc Ping (Empty) returns (Pong) {}
+
+  // Gets the time on the server 
+  rpc GetTime (Empty) returns (GetTimeResponse) {}
+}
+
+message PutRequest {
+  string Key = 1;
+  string Value = 2;
+  int32 Expiration = 3;
+}
+
+message PutResponse {
+  bool Success = 1;
+}
+
+message GetRequest {
+  string Key = 1;
+}
+
+message GetResponse {
+  string Value = 1;
+}
+
+message DeleteRequest {
+  string Key = 1;
+}
+
+message DeleteResponse {
+  bool Success = 1;
+}
+
+message Empty {
+}
+
+message Pong {
+  string Message = 1;
+}
+
+message GetTimeResponse {
+  int32 Timestamp = 1;
+}

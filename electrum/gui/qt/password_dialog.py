@@ -28,7 +28,7 @@ import math
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QLineEdit, QLabel, QGridLayout, QVBoxLayout, QCheckBox
+from PyQt5.QtWidgets import QLineEdit, QLabel, QGridLayout, QVBoxLayout, QCheckBox, QDialog
 
 from electrum_exos.i18n import _
 from electrum_exos.plugin import run_hook
@@ -285,11 +285,12 @@ class ChangePasswordDialogForHW(ChangePasswordDialogBase):
         return True, self.playout.encrypt_cb.isChecked()
 
 
-class PasswordDialog(WindowModalDialog):
+class PasswordDialog(QDialog):
 
     def __init__(self, parent=None, msg=None):
         msg = msg or _('Please enter your password')
-        WindowModalDialog.__init__(self, parent, _("Enter Password"))
+        QDialog.__init__(self, parent)
+        self.setWindowTitle(_("Enter Password"))
         self.pw = pw = QLineEdit()
         pw.setEchoMode(2)
         vbox = QVBoxLayout()
