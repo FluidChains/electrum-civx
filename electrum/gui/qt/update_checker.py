@@ -4,7 +4,7 @@
 
 import asyncio
 import base64
-from distutils.version import StrictVersion
+from packaging.version import Version
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar,
@@ -75,7 +75,7 @@ class UpdateCheck(QWidget, Logger):
 
     @staticmethod
     def is_newer(latest_version):
-        return latest_version > StrictVersion(version.ELECTRUM_VERSION)
+        return latest_version > Version(version.ELECTRUM_VERSION)
 
     def update_view(self, latest_version=None):
         if latest_version:
@@ -126,7 +126,7 @@ class UpdateCheckThread(QThread, Logger):
                         break
                 else:
                     raise Exception('no valid signature for version announcement')
-                return StrictVersion(version_num.strip())
+                return Version(version_num.strip())
 
     def run(self):
         network = self.main_window.network

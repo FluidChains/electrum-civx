@@ -10,3 +10,4 @@ aiohttp>=3.3.0
 aiohttp_socks
 certifi
 grpcio==1.30.0
+packaging
